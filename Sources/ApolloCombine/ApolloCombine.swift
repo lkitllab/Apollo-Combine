@@ -36,12 +36,13 @@ extension ApolloClient: ApolloCombine {
         data: @escaping (Query.Data?) -> T?
     ) -> AnyPublisher<T?, Error> where Query : ApolloAPI.GraphQLQuery {
         Future { [unowned self] promise in
-            self.fetch(query: query, cachePolicy: cachePolicy) { result in
-                self.processGraphQLResult(
-                    result,
-                    promise: promise,
-                    data: data
-                )
+            fetch(query: query, cachePolicy: cachePolicy) { result in
+                do {
+                    let resultData = try result.get().data
+                    promise(.success(data(resultData)))
+                } catch {
+                    promise(.failure(error))
+                }
             }
         }
         .eraseToAnyPublisher()
@@ -54,11 +55,12 @@ extension ApolloClient: ApolloCombine {
     ) -> AnyPublisher<T?, Error> where Mutation : ApolloAPI.GraphQLMutation {
         Future { [unowned self] promise in
             perform(mutation: mutation, publishResultToStore: publishResultToStore) { result in
-                self.processGraphQLResult(
-                    result,
-                    promise: promise,
-                    data: data
-                )
+                do {
+                    let resultData = try result.get().data
+                    promise(.success(data(resultData)))
+                } catch {
+                    promise(.failure(error))
+                }
             }
         }
         .eraseToAnyPublisher()
@@ -71,11 +73,12 @@ extension ApolloClient: ApolloCombine {
     ) -> AnyPublisher<T?, Error> where Operation : ApolloAPI.GraphQLOperation {
         Future { [unowned self] promise in
             upload(operation: operation, files: files) { result in
-                self.processGraphQLResult(
-                    result,
-                    promise: promise,
-                    data: data
-                )
+                do {
+                    let resultData = try result.get().data
+                    promise(.success(data(resultData)))
+                } catch {
+                    promise(.failure(error))
+                }
             }
         }
         .eraseToAnyPublisher()
@@ -87,30 +90,14 @@ extension ApolloClient: ApolloCombine {
     ) -> AnyPublisher<T?, Error> where Subscription : ApolloAPI.GraphQLSubscription {
         Future { [unowned self] promise in
             subscribe(subscription: subscription) { result in
-                self.processGraphQLResult(
-                    result,
-                    promise: promise,
-                    data: data
-                )
+                do {
+                    let resultData = try result.get().data
+                    promise(.success(data(resultData)))
+                } catch {
+                    promise(.failure(error))
+                }
             }
         }
         .eraseToAnyPublisher()
-    }
-    
-    private func processGraphQLResult<Data: RootSelectionSet, T>(
-        _ result : Result<GraphQLResult<Data>, Error>,
-        promise: (Result<T?, Error>) -> Void,
-        data: (Data?) -> T?
-    ) {
-        switch result {
-        case .success(let graphQLResult):
-            guard let error = graphQLResult.errors?.first else {
-                promise(.success(data(graphQLResult.data)))
-                return
-            }
-            promise(.failure(error))
-        case .failure(let error):
-            promise(.failure(error))
-        }
     }
 }
